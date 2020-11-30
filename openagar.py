@@ -71,19 +71,17 @@ def timerFired(app):
                 if app.useCam:
                     dot.update((app.width, app.height), app.cap) 
                 else:
-                    dot.move((app.keyX, app.keyY))
+                    dot.move(app.keyX, app.keyY)
             else:
                 dot.update((app.width, app.height))
-        if app.useCam == False:
-            app.myDot.move(app.keyX, app.keyY)
         overlapping = getOverlapping(app.dots + app.foodList)
         for overlap in overlapping:
             overlap = sorted(overlap, key = lambda x: x.r)
             try:
-                if type(overlap[0]) == GameObject:
+                if type(overlap[0]) == GameObject and overlap[0] in app.foodList:
                     overlap[1].grow(overlap[0].r, True)
                     app.foodList.remove(overlap[0])
-                elif overlap[0].r < overlap[1].r:
+                elif overlap[0].r < overlap[1].r and overlap[0] in app.dots:
                     overlap[1].grow(overlap[0].r, False)
                     app.dots.remove(overlap[0])
                     Dot.allDots.remove(overlap[0])
