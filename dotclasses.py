@@ -23,7 +23,7 @@ class Dot(GameObject):
         super().__init__(x, y, r)
         self.color = random.choice(["blue", "green","yellow","purple"])
         self.id = id
-        self.speedConstant = delay
+        self.delay = delay
         self.growthRate = 10
         Dot.allDots.append(self)
 
@@ -59,7 +59,7 @@ class Dot(GameObject):
     
     # returns top speed depending on radius
     def getTopSpeed(self):
-        return 10
+        return 8 * self.delay/self.r
 
     # returns closest dot to self and distance to dot
     def getClosestDot(self):
@@ -122,3 +122,5 @@ class MyDot(Dot):
         converted = Image.fromarray(rgb)
         img = ImageTk.PhotoImage(converted)
         self.frame = img
+
+

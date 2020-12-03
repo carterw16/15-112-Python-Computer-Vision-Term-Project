@@ -6,7 +6,13 @@ import math, time, random
 from dotclasses import *
 from videofiltering import *
 
-""" TODO:
+""" 
+git status
+git add ___
+git commit -m "___"
+git push origin main
+
+TODO:
     1. fix grow function
     2. fix speed function
     3. moving screen
@@ -105,7 +111,7 @@ def keyPressed(app, event):
             app.keyX += 20
         
 def getCellBounds(app, row, col):
-    gridWidth  = 2*app.width
+    gridWidth = 2*app.width
     gridHeight = 2*app.height
     x0 = gridWidth * col / app.cols
     x1 = gridWidth * (col+1) / app.cols
