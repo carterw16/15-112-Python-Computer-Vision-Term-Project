@@ -30,6 +30,7 @@ def getPositionFromVideo(cap):
     maxContour, contourImg = getContours(redMask, frame)
     contourImgWithCenter = drawCenterOfCountour(maxContour, contourImg)
     dims = frame.shape
+
     return getCenterOfContour(maxContour, (dims[0]/2, dims[1]/2)), dims, contourImgWithCenter
 
 # def displayFrame(contour, contourImg):
