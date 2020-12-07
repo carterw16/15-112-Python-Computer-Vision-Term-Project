@@ -5,6 +5,187 @@ from PIL import Image, ImageTk
 
 __CWDEBUG__ = False
 
+    #find list of closest food/smaller object
+    #for target in list:
+    #   if safe to attack:
+            #attack
+    #if no targets safe to attack:
+    #   escape closest danger
+def determineMove(self, closestDots):
+    nextDir = self.velocity
+
+    target = self.findSafeTarget(closestDots)
+
+    if target is not None:
+        nextDir = self.getVectorFromSelf(target.x, target.y)
+    else:
+        closestThreat = self.findClosestThreat(closestDots)
+        if closestThreat is not None:
+            vectorToThreat = self.getVectorFromSelf(closestThreat.x, closestThreat.y)
+            nextDir = - vectorToThreat
+    return nextDir
+
+
+def findClosestThreat(self, closestDots):
+    for dot in closestDots:
+        if dot.r > self.r:
+            return dot
+    return None
+
+def findSafeTarget(self, closestDots):
+    for dot in closestDots:
+        if dot.r < self.r:
+            if self.checkTargetSafety(dot, closestDots):
+                return dot
+    return None
+
+def checkTargetSafety(self, target, closestDots):
+    for dot in closestDots:
+        if dot.r > self.r:
+            selfToTargetDist = self.distance(target.x, target.y, self.x, self.y) 
+            dotToTargetDist = self.distance(target.x, target.y, dot.x, dot.y) 
+            if dotToTargetDist < selfToTargetDist:
+                return False
+    return True
+        
+def getVectorFromSelf(self, otherX, otherY):
+    vector = np.array([otherX, otherY]) - np.array([self.x, self.y])
+    return self.normalizeVector(vector)
+
+def update(self, closestDots, bounds=None):
+        # print(closestDots)
+
+        if closestDots is None or len(closestDots) == 0:
+            self.mode = "coast"
+        elif len(closestDots) > 0:
+            closestDots = sorted(closestDots, key=lambda dotDistTups: dotDistTups[1])
+            self.setMode(closestDots) 
+            if self.mode == "defensive":
+                nextDir = self.defensiveVector(closestDots, bounds)
+            elif self.mode == "offensive":
+                nextDir = self.offensiveVector(closestDots)
+        if self.mode == "coast":
+            # print("COAST")
+            nextDir = self.velocity
+            # else:
+                # print("NO MODE")
+
+
+        self.x, self.y = self.takeStep(nextDir, bounds)
+        self.velocity = nextDir
+    
+    def takeStep(self, nextDir, bounds):
+        maxX = bounds[0] // 2
+        maxY = bounds[1] // 2
+        speed = self.getTopSpeed()
+        newX = self.x + nextDir[0]*speed
+        newY = self.y + nextDir[1]*speed
+        if bounds:
+            newX = min(maxX-self.r, newX)
+            newX = max(-maxX+self.r, newX)
+            newY = min(maxY-self.r, newY)
+            newY = max(-maxY+self.r, newY) 
+        
+        return newX, newY
+
+    def offensiveVector(self, closestDots):
+        # print("OFFENSIVE")
+        # print(closestDots[0][0])
+        return self.getVectorFromSelf(closestDots[0][0].x, closestDots[0][0].y)
+
+    def defensiveVector(self, closestDots, bounds):
+        # print("DEFENSE")
+        allVectors = []
+        # averageVector = np.array([0.,0.])
+        for dot, dist in closestDots:
+            if dot.r > self.r:
+                vectorToDot = self.getVectorFromSelf(dot.x, dot.y)
+                oppositeVector = -vectorToDot
+                dist = self.distance(self.x, self.y, dot.x, dot.y)
+                dp = self.dotProduct(vectorToDot, dot.velocity)
+                # weight = 50*(dp + 1)/(dot.r * dist)
+                # weight = 1
+                # print("W", weight)
+                # averageVector += oppositeVector * weight
+                allVectors.append(oppositeVector)
+        # check if close to boundary
+        
+        distToRightBound = self.distance(self.x, self.y, bounds[0], self.y)
+        distToBottomBound = self.distance(self.x, self.y, self.x, bounds[1])
+        distToLeftBound = self.distance(self.x, self.y, 0, self.y)
+        distToTopBound = self.distance(self.x, self.y, self.x, 0)
+        if distToRightBound < self.r * 4: 
+            # print('close to right')
+        # averageVector += self.boundsVector(bounds[0], self.y)
+            allVectors.append(self.boundsVector(bounds[0], self.y))
+        if distToBottomBound < self.r * 4:
+            # print('close to bottom')
+        # averageVector += self.boundsVector(self.x, bounds[1])
+            allVectors.append(self.boundsVector(self.x, bounds[1]))
+
+        if distToLeftBound < self.r * 4:
+            # print('close to left')
+        # averageVector += self.boundsVector(0, self.y)
+            allVectors.append(self.boundsVector(0, self.y))
+
+        if distToTopBound < self.r * 4:
+        #     print('close to top')
+        # averageVector += self.boundsVector(self.x, 0)
+            allVectors.append(self.boundsVector(self.x, 0))
+        # print(allVectors)
+        sumVector = np.array([0., 0.])
+        for v in allVectors:
+            sumVector += v
+        self.allVectors = allVectors
+        # print(allVectors)
+        # print(sumVector) 
+        ret = self.normalizeVector(sumVector)  
+        # print("**", ret)
+        # print(allVectors) 
+        return ret
+    
+    def boundsVector(self, x, y):
+        vectorToDot = self.getVectorFromSelf(x, y)
+        oppositeVector = -vectorToDot
+        dist = self.distance(self.x, self.y, x, y)
+        # weight = self.r / (dist + self.r)
+        return oppositeVector
+
+    def setMode(self, closestDots):
+        # closest, closestDistance = self.getClosestDot(closestDots)
+        closest = closestDots[0][0]
+        closestDist = closestDots[0][1]
+        closestVector = closest.velocity
+        vectorFromClosest = -self.getVectorFromSelf(closest.x, closest.y)
+        if closest.r < self.r:
+            self.mode = "offensive"
+        elif closest.r > self.r:
+            # movingToward = self.dotProduct(closestVector, vectorFromClosest) > 0
+            # withinDiameter = closestDist < (2*self.r)
+
+            # if movingToward:
+            #     self.mode = 'defensive'
+            # elif withinDiameter:
+            #     self.mode = 'defensive'
+            # else:
+            #     self.mode ='offensive'
+            
+            self.mode = "defensive"
+        else:
+            self.mode = "coast"
+
+
+    
+    @staticmethod
+    def normalizeVector(vector):
+        norm = np.linalg.norm(vector)
+        if norm == 0: print('norm 0', vector, norm)
+        return vector / norm
+
+
+
+
+
 class BasicObject(object):
     def __init__(self, x, y, r):
         self.x = x

@@ -31,12 +31,13 @@ def appStarted(app):
     app.gridHeight = 2*app.height
     app.cellWidth = app.gridWidth / app.cols
     app.cellHeight = app.gridHeight / app.rows
+    app.nextId = 0
     # app.mapDims = (app.width, app.height)
-    app.maxR = 50
+    app.maxR = 30
     app.minR = 20
     app.gameCenter = (app.width/2, app.height/2)
     # app.mode = "menu"
-    app.mode = "game"
+    app.mode = "menu"
     app.countdownStart = None
     app.countdownNumber = 3
     # app.dotX = app.width/2
@@ -45,7 +46,7 @@ def appStarted(app):
     app.useCam = True
     app.timerDelay = 5
     # app.myDot = MyDot(app.width/2, app.height/2, 30, -1, app.timerDelay, app.useCam)
-    app.myDot = MyDot(0, 0, 30, -1, app.timerDelay, app.useCam)
+    app.myDot = MyDot(0, 0, 25, -1, app.timerDelay, app.useCam)
     # app.mouseX = app.width/2
     # app.mouseY = app.height/2
     app.keyX = app.width/2
@@ -59,22 +60,38 @@ def appStarted(app):
     if app.useCam:
         app.cap = cv2.VideoCapture(0)
 
-def createEnemies(app, count):
+def createEnemies(app, count=1):
     enemyDots = []
     for i in range(count):
         enemyDots.append(Dot(random.randrange(-app.gridWidth/2, app.gridWidth/2), 
         random.randrange(-app.gridHeight/2,app.gridHeight/2),
-        random.randrange(app.minR,app.maxR), i, app.timerDelay))
+        random.randrange(app.minR,app.maxR), app.nextId, app.timerDelay))
+        app.nextId += 1
     return enemyDots
+
+def getAllSubDotsAndFood(dots, food=None):
+    ret = []
+    for dot in dots:
+        if type(dot) == Dot or type(dot) == MyDot:
+            
+            for subDot in dot.subDotList:
+                ret.append(subDot)
+        elif type(dot) == GameObject:
+            ret.append(dot)
+    return ret
+
 
 def getOverlapping(dots):
     overlapping = []
-    for i in range(len(dots)):
-        dot = dots[i]
+    allSubDots = getAllSubDotsAndFood(dots)
+    for i in range(len(allSubDots)):
+        dot = allSubDots[i]
         for j in range(i+1, len(dots)):
-            dot2 = dots[j]
-            if dot.distance(dot.x, dot.y, dot2.x, dot2.y) < dot.r + dot2.r: 
-                overlapping.append([dot, dot2])
+            dot2 = allSubDots[j]
+            # if dot.distance(dot.x, dot.y, dot2.x, dot2.y) < dot.r + dot2.r: 
+            #     overlapping.append([dot, dot2])
+            if dot.isOverlapping(dot2):
+                overlapping.append([dot,dot2])
     return overlapping
 
 def timerFired(app):
@@ -91,7 +108,7 @@ def timerFired(app):
     if app.mode == "game":
         start = time.time()
         app.gameObjectTree = KDTree(app.dots + app.foodList)
-        print("updatetree=", time.time()-start)
+        # print("updatetree=", time.time()-start)
         for i, dot in enumerate(app.dots):
             if dot == app.myDot:
                 if app.useCam:
@@ -110,29 +127,37 @@ def timerFired(app):
                 # allCloseDots.append(closestDots)
                 dot.update(closestDots, (app.gridWidth, app.gridHeight))
         overlapping = getOverlapping(app.dots + app.foodList)
+        # print(overlapping)
         for overlap in overlapping:
             overlap = sorted(overlap, key = lambda x: x.r)
+            # print(f"***** {type(overlap[0])} {type(overlap[1])}")
             try:
-                if isinstance(overlap[1], Dot) and overlap[0] in app.foodList:
-                    overlap[1].grow(overlap[0].r, True)
+                if type(overlap[0]) == GameObject and type(overlap[1]) == GameObject:
+                    app.foodList.remove(overlap[0])
+                elif isinstance(overlap[1], SubDot) and type(overlap[0]) == GameObject:
+                    overlap[1].parent.grow(overlap[0].r, True)
                     app.foodList.remove(overlap[0])
                     # app.gameObjectTree.delete(overlap[0])
                     newFood = GameObject(random.randrange(-app.gridWidth/2, app.gridWidth/2),random.randrange(-app.gridHeight/2,app.gridHeight/2),5)
                     # app.gameObjectTree.insert(newFood)
                     app.foodList.append(newFood)
-                elif overlap[0].r < overlap[1].r and overlap[0] in app.dots:
-                    overlap[1].grow(overlap[0].r, False)
-                    app.dots.remove(overlap[0])
+                # elif overlap[0].r < overlap[1].r and overlap[0] in app.dots and overlap[0].id != overlap[1].id:
+                elif overlap[0].r < overlap[1].r:
+                    # print("overlap", overlap[0], overlap[1])
+                    # if overlap[0].id == -1:
+                    #     print("overlap=", overlap[0])
+                    overlap[1].parent.grow(overlap[0].r, False)
+                    overlap[0].parent.removeSubDot(overlap[0])
+                    if len(overlap[0].parent.subDotList) == 0:
+                        app.dots.remove(overlap[0].parent)
+                    # app.dots += createEnemies(app)
                     # Dot.allDots.remove(overlap[0])
                     # app.gameObjectTree.delete(overlap[0])
-                    newDot = Dot(random.randrange(-app.gridWidth/2, app.gridWidth/2), 
-                             random.randrange(-app.gridHeight/2,app.gridHeight/2),
-                             random.randrange(app.minR,app.maxR), i, app.timerDelay)
+                    
                     # app.gameObjectTree.insert(newDot)
-                    app.dots.append(newDot)
             except:
                 print(overlapping)
-                raise
+
 
 # def updateDot(app, dot):
 #     closestDots = app.gameObjectTree.findObjectsWithinDist(dot, app.targetDist)
@@ -153,11 +178,21 @@ def keyPressed(app, event):
             app.keyX -= 20
         elif event.key == "Right":
             app.keyX += 20
+    if event.key == "Space":
+        app.myDot.split()
 
 # def splitDot(app, dot):
+#     print("hello")
 #     newR = dot.r // 2
-#     dot = SplitDot([])
+#     if dot is app.myDot:
+#         dotList = [MyDot(app.myDot.x-newR, app.myDot.y-newR, newR, -1, app.timerDelay, app.useCam),
+#         MyDot(app.myDot.x+newR, app.myDot.y+newR, newR, -1, app.timerDelay, app.useCam)]
+#         x = app.myDot.x
+#         y = app.myDot.y
+#         app.myDot = SplitDot(dotList, x, y)
         
+# getCellBounds from https://www.cs.cmu.edu/~112/notes/notes-animations-part1.html
+# added xOffset and yOffset
 def getCellBounds(app, row, col, xOffset, yOffset):
     gridWidth = app.gridWidth
     gridHeight = app.gridHeight
@@ -167,13 +202,20 @@ def getCellBounds(app, row, col, xOffset, yOffset):
     y1 = gridHeight * (row+1) / app.rows +yOffset
     return (x0, y0, x1, y1)
 
+#from https://www.cs.cmu.edu/~112/notes/notes-animations-part1.html
 def drawGrid(app, canvas, xOffset=0, yOffset=0):
     for row in range(-1, app.rows+1):
         for col in range(-1, app.cols + 1):
-            # col += xOffset
-            # row += yOffset
             (x0, y0, x1, y1) = getCellBounds(app, row, col, xOffset, yOffset)
             canvas.create_rectangle(x0, y0, x1, y1, fill='white')
+
+def drawBorder(app, canvas):
+    x0 = app.gameCenter[0] - app.gridWidth / 2
+    x1 = app.gameCenter[0] + app.gridWidth / 2
+    y0 = app.gameCenter[1] - app.gridHeight / 2
+    y1 = app.gameCenter[1] + app.gridHeight / 2
+    canvas.create_rectangle(x0, y0, x1, y1, 
+    outline="red", width="5")
 
 def drawDots(app, canvas):
     # shiftX = app.myDot.x + app.width/2
@@ -227,9 +269,6 @@ def drawGameOver(app, canvas):
                         text=f'You Win!',
                         font='Arial 30 bold')
 
-def drawBorder(app, canvas):
-    canvas.create_rectangle(-app.gridWidth/2, -app.gridHeight/2, app.gridWidth/2, app.gridHeight/2, width=5)
-
 def redrawAll(app, canvas):
     if app.mode == "menu":
         drawMenu(app, canvas)
@@ -241,18 +280,17 @@ def redrawAll(app, canvas):
         xOffset = - app.myDot.x % app.cellWidth
         yOffset = - app.myDot.y % app.cellHeight
         # print(xOffset, yOffset)
-        print("*"*10)
+        # print("*"*10)
         start = time.time()
         drawGrid(app, canvas, xOffset, yOffset)
         drawBorder(app, canvas)
-        print("drawgrid=", time.time()-start)
+        # print("drawgrid=", time.time()-start)
     # if app.useCam:
     #     text = "Webcam not available"
     #     canvas.create_text(app.width/2, app.height - 20, text = text)
-        print("*"*10)
         start = time.time()
         drawDots(app, canvas)
-        print("drawdots=", time.time()-start)
+        # print("drawdots=", time.time()-start)
         if app.useCam:
             canvas.create_image(app.width, app.height, anchor = SE, image = app.myDot.frame)
 

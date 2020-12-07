@@ -9,6 +9,7 @@ class KDTree(object):
         return str(self.root)
 
     @staticmethod
+    # Helped by https://en.wikipedia.org/wiki/K-d_tree
     def buildTree(objects, d=0):
         if len(objects) == 0:
             return None
@@ -50,6 +51,7 @@ class KDTree(object):
         return KDTree.findObjectsWithinDistHelper(self.root, item.x, item.y, item.r, targetDist)
     
     @staticmethod
+    # Helped by https://en.wikipedia.org/wiki/K-d_tree
     def findObjectsWithinDistHelper(node, x, y, r, targetDist, d=0):
         # print(f'curr: {node}')
         if node is None:
@@ -155,7 +157,7 @@ def naiveFindObjectsWithinDist(objects, item, targetDist):
 
 def testKDTree():
     dummies = []
-    for i in range(10):
+    for i in range(10000):
         dummies.append(DummyObject(random.randint(0,20),random.randint(0,20), random.randint(1,4)))
     # print(dummies)
     t = KDTree(dummies)
@@ -163,17 +165,18 @@ def testKDTree():
     # print("%%%"*10)
     # t.delete(dummies[0])
     # print(t)
-    # start = time.time()
-    # print(naiveFindObjectsWithinDist(dummies, DummyObject(0,0,1), 5))
-    # print(time.time()-start)
-    # start = time.time()
-    # print(t.findObjectsWithinDist(DummyObject(0,0,1), 5))
+    start = time.time()
+    naiveFindObjectsWithinDist(dummies, DummyObject(0,0,1), 5)
+    print("slower ", time.time()-start)
+    start = time.time()
+    t.findObjectsWithinDist(DummyObject(0,0,1), 5)
+    print("KDTree ", time.time()-start)
 
-    sp = (0, 0, 1)
-    searchDist = 5
-    naives = naiveFindObjectsWithinDist(dummies, DummyObject(*sp), searchDist)
-    news = t.findObjectsWithinDist(DummyObject(*sp), searchDist)
-    print(news)
+    # sp = (0, 0, 1)
+    # searchDist = 5
+    # naives = naiveFindObjectsWithinDist(dummies, DummyObject(*sp), searchDist)
+    # news = t.findObjectsWithinDist(DummyObject(*sp), searchDist)
+    # print(news)
     
     import numpy as np
     # main_list = np.setdiff1d(list_2,list_1
