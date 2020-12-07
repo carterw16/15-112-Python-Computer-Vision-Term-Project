@@ -394,17 +394,8 @@ class MyDot(Dot):
         # else:
         #     self.dotList = [self]
 
-    # returns velocity in two parts: direction (as normalized vector), magnitude
-    def getVelocityFromCam(self, camX, camY, shape):
-        camDistance = self.distance(shape[1]/2, shape[0]/2, camX, camY)
-        dotVector = np.array([camX, camY]) - np.array([shape[1]/2, shape[0]/2])
-        normalized = dotVector / camDistance
-        return normalized, 1
-    
-    def update(self, gameBounds, cap):
-        camXY, shape, frame = getPositionFromVideo(cap)
-        self.saveImage(shape, frame, (shape[1], shape[0]))
-        camX, camY = camXY
+    def update(self, gameBounds, cap, hueRange, satRange=(180,255), valRange=(100,255)):
+        camX, camY, shape = self.getFrame(cap, 1/6, hueRange, satRange, valRange)
         dirVector, mag = self.getVelocityFromCam(camX, camY, shape)
 
         if self.isSplit and time.time() - self.splitTime > 10:
@@ -415,10 +406,23 @@ class MyDot(Dot):
         for subDot in self.subDotList:
             subDot.update(self.x, self.y)
         self.velocity = dirVector
+    
+    def getFrame(self, cap, sizeFactor, hueRange, satRange=(180,255), valRange=(100,255)):
+        camXY, shape, frame = getPositionFromVideo(cap, hueRange, satRange, valRange)
+        self.saveImage(shape, frame, (shape[1], shape[0]), sizeFactor)
+        camX, camY = camXY
+        return camX, camY, shape
 
-    def saveImage(self, shape, frame, gameBounds):
+    # returns velocity in two parts: direction (as normalized vector), magnitude
+    def getVelocityFromCam(self, camX, camY, shape):
+        camDistance = self.distance(shape[1]/2, shape[0]/2, camX, camY)
+        dotVector = np.array([camX, camY]) - np.array([shape[1]/2, shape[0]/2])
+        normalized = dotVector / camDistance
+        return normalized, 1
+    
+    def saveImage(self, shape, frame, gameBounds, sizeFactor):
         # transparent = np.dstack((frame, np.zeros((shape[0], shape[1]))))
-        resized = cv2.resize(frame, (int(gameBounds[0]/6), int(gameBounds[1]/6)))
+        resized = cv2.resize(frame, (int(gameBounds[0] * sizeFactor), int(gameBounds[1] * sizeFactor)))
         rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
         converted = Image.fromarray(rgb)
         img = ImageTk.PhotoImage(converted)

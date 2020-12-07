@@ -1,33 +1,48 @@
 import cv2
 import numpy as np
 
-def getColorMask(img, minHue, maxHue):
+def getColorMask(img, hueRange, satRange=(180,255), valRange=(100,255)):
     # cv2.cvtColor from https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/
     # py_gui/py_video_display/py_video_display.html
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    if minHue > maxHue:
-        minHSV = np.array([0,180,100])
-        maxHSV = np.array([maxHue,255,255])
+    minH, maxH = hueRange[0], hueRange[1]
+    minS, maxS = satRange[0], satRange[1]
+    minV, maxV = valRange[0], valRange[1]
+    if minH > maxH:
+        minHSV = np.array([0,minS,minV])
+        maxHSV = np.array([maxH,maxS,maxV])
         mask1 = cv2.inRange(hsv, minHSV, maxHSV)
-        minHSV = np.array([minHue,180,100])
-        maxHSV = np.array([179,255,255])
+        minHSV = np.array([minH,minS,minV])
+        maxHSV = np.array([179,maxS,maxV])
         mask2 = cv2.inRange(hsv, minHSV, maxHSV)
         mask = cv2.bitwise_or(mask1,mask2)
     else:
-        minHSV = np.array([minHue,180,100])
-        maxHSV = np.array([maxHue,255,255])
+        minHSV = np.array([minH,minS,minV])
+        maxHSV = np.array([maxH,maxS,maxV])
         mask = cv2.inRange(hsv, minHSV, maxHSV)
     return mask
 
-def getPositionFromVideo(cap):
+def calibrate(cap, x, y):
+    frame = readCap(cap)
+    hsvFrame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    pixelHSV = hsvFrame[int(y)][int(x)]
+    hueRange = (pixelHSV[0] - 10, (pixelHSV[0] + 10) % 179)
+    satRange = (pixelHSV[1] - 50, pixelHSV[1] + 50)
+    valRange = (pixelHSV[2] - 50, pixelHSV[2] + 50)
+    return hueRange, satRange, valRange
+
+
+def readCap(cap):
+    ret, frame = cap.read()
+    return cv2.flip(frame, 1)
+
+def getPositionFromVideo(cap, hueRange, satRange=(180,255), valRange=(100,255)):
     # if statement header from https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/
     # py_gui/py_video_display/py_video_display.html
     # if cap is None or not cap.isOpened():
-
-    ret, frame = cap.read()
-    frame = cv2.flip(frame, 1)
-    redMask = getColorMask(frame, 170, 10)
-    maxContour, contourImg = getContours(redMask, frame)
+    frame = readCap(cap)
+    mask = getColorMask(frame, hueRange, satRange, valRange)
+    maxContour, contourImg = getContours(mask, frame)
     contourImgWithCenter = drawCenterOfCountour(maxContour, contourImg)
     dims = frame.shape
 

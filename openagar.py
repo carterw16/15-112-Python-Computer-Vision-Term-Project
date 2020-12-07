@@ -57,6 +57,10 @@ def appStarted(app):
     app.dots = app.enemyDots + [app.myDot]
     app.gameObjectTree = KDTree(app.dots + app.foodList)
     app.targetDist = 300
+    app.calibrationSize = 1/2
+    app.hueRange = (170, 10)
+    app.satRange = (180, 255)
+    app.valRange = (100, 255)
     if app.useCam:
         app.cap = cv2.VideoCapture(0)
 
@@ -105,8 +109,10 @@ def timerFired(app):
             app.countdownNumber = 3 - int(time.time()-app.countdownStart)
         else:
             app.mode = "game"
+    if app.mode == "calibration":
+        camX, camY, shape = app.myDot.getFrame(app.cap, app.calibrationSize, app.hueRange, 
+                                                app.satRange, app.valRange)
     if app.mode == "game":
-        start = time.time()
         app.gameObjectTree = KDTree(app.dots + app.foodList)
         # print("updatetree=", time.time()-start)
         for i, dot in enumerate(app.dots):
@@ -115,7 +121,8 @@ def timerFired(app):
                     # closestDots = app.gameObjectTree.findObjectsWithinDist(dot, app.targetDist)
                     # print(closestDots)
                     # print(app.gameObjectTree)
-                    dot.update((app.gridWidth, app.gridHeight), app.cap) 
+                    dot.update((app.gridWidth, app.gridHeight), app.cap, app.hueRange, 
+                                                app.satRange, app.valRange) 
                     app.gameCenter = (app.width/2 - dot.x, app.height/2 - dot.y)
                 else:
                     dot.move(app.keyX, app.keyY)
@@ -228,31 +235,56 @@ def drawDots(app, canvas):
 def mousePressed(app, event):
     if app.mode == "menu":
         cx, cy = app.width/3, app.height/2
-        if ((cx-50 <= event.x <= cx+50) and
-            (cy-10 <= event.y <= cy+10)):
+        if ((cx-100 <= event.x <= cx+100) and
+            (cy-20 <= event.y <= cy+20)):
+            app.useCam = True
+            app.mode = "calibration"
+            app.countdownStart = time.time()
+        cx, cy = 2*app.width/3, app.height/2
+        if ((cx-100 <= event.x <= cx+100) and
+            (cy-20 <= event.y <= cy+20)):
             app.useCam = True
             app.mode = "countdown"
             app.countdownStart = time.time()
-        cx, cy = 2*app.width/3, app.height/2
+    elif app.mode == "calibration":
+        cx, cy = app.width - 50, app.height - 50
         if ((cx-50 <= event.x <= cx+50) and
-            (cy-10 <= event.y <= cy+10)):
-            app.useCam = False
-            app.mode = "countdown"
-            app.countdownStart = time.time()
-        
+            (cy-20 <= event.y <= cy+20)):
+            app.mode = "menu"
+        cx, cy = app.width*app.calibrationSize, app.height/3 + app.height/4
+        if ((0 <= event.x <= app.width * app.calibrationSize) and
+            (0 <= event.y <= app.height * app.calibrationSize)):
+            # print("inside")
+            app.hueRange, app.satRange, app.valRange = calibrate(app.cap, event.x / app.calibrationSize, 
+                                                                event.y / app.calibrationSize)
+            print(app.hueRange)
+    elif app.mode == "gameover":
+        cx, cy = app.width/2, app.height/2
+        if ((cx-100 <= event.x <= cx+100) and
+            (cy-20 <= event.y <= cy+20)):
+            appStarted(app)
+
+
+                    
 def drawMenu(app, canvas): # buttons from https://piazza.com/class/ke208q10xpk75w?cid=3791
     cx, cy = app.width/3, app.height/2
-    canvas.create_rectangle(cx-50, cy-10, cx+50, cy+10, fill='cyan')
-    canvas.create_text(cx, cy, text='Click me!')
+    
+    canvas.create_text(app.width/2, app.height/3,
+                       text='OPEN AGAR',
+                       fill='red',
+                       font='Arial 60 bold')
+    
+    canvas.create_rectangle(cx-100, cy-20, cx+100, cy+20, fill='green')
+    canvas.create_text(cx, cy, text='Calibrate', font='Arial 20 bold')
     canvas.create_text(cx, cy+50,
-                       text='OpenCV Mode',
-                       font='Arial 30 bold')
+                    text='(Tracks red objects by default)',
+                    font='Arial 14 bold')
     cx, cy = 2*app.width/3, app.height/2
-    canvas.create_rectangle(cx-50, cy-10, cx+50, cy+10, fill='cyan')
-    canvas.create_text(cx, cy, text='Click me!')
-    canvas.create_text(cx, cy+50,
-                       text='Arrow keys Mode',
-                       font='Arial 30 bold')
+    canvas.create_rectangle(cx-100, cy-20, cx+100, cy+20, fill='green')
+    canvas.create_text(cx, cy, text='Start Game!', font='Arial 20 bold')
+    # canvas.create_text(cx, cy+50,
+    #                    text='Webcam N',
+    #                    font='Arial 30 bold')
 
 def drawCountdown(app, canvas):
     cx, cy = app.width/2, app.height/2
@@ -261,13 +293,26 @@ def drawCountdown(app, canvas):
 def drawGameOver(app, canvas):
     cx, cy = app.width/2, app.height/2
     if app.myDot not in app.dots:
-        canvas.create_text(cx, cy+50,
-                        text=f'You Lose!',
-                        font='Arial 30 bold')
+        canvas.create_text(app.width/2, app.height/3,
+                       text='You Lose!',
+                       fill='red',
+                       font='Arial 60 bold')
     else:
-        canvas.create_text(cx, cy+50,
-                        text=f'You Win!',
-                        font='Arial 30 bold')
+        canvas.create_text(app.width/2, app.height/3,
+                       text='You win!',
+                       fill='blue',
+                       font='Arial 60 bold')
+
+    cx, cy = app.width/2, app.height/2
+    canvas.create_rectangle(cx-100, cy-20, cx+100, cy+20, fill='green')
+    canvas.create_text(cx, cy, text='Main Menu', font='Arial 20 bold')
+
+def drawCalibration(app, canvas):
+    canvas.create_image(0, 0, anchor = NW, image = app.myDot.frame)
+    cx, cy = app.width - 50, app.height - 50
+    canvas.create_rectangle(cx-50, cy-20, cx+50, cy+20, fill='green')
+    canvas.create_text(cx, cy, text="I'm done", font='Arial 20 bold')
+
 
 def redrawAll(app, canvas):
     if app.mode == "menu":
@@ -276,19 +321,19 @@ def redrawAll(app, canvas):
         drawCountdown(app, canvas)
     elif app.mode == "gameover":
         drawGameOver(app, canvas)
+    elif app.mode == "calibration":
+        drawCalibration(app, canvas)
     else:
         xOffset = - app.myDot.x % app.cellWidth
         yOffset = - app.myDot.y % app.cellHeight
         # print(xOffset, yOffset)
         # print("*"*10)
-        start = time.time()
         drawGrid(app, canvas, xOffset, yOffset)
         drawBorder(app, canvas)
         # print("drawgrid=", time.time()-start)
     # if app.useCam:
     #     text = "Webcam not available"
     #     canvas.create_text(app.width/2, app.height - 20, text = text)
-        start = time.time()
         drawDots(app, canvas)
         # print("drawdots=", time.time()-start)
         if app.useCam:
